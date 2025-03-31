@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ghibli Image Converter</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        .image-container {
+            height: 400px;
+            background-color: #f3f4f6;
+        }
+        .before-after {
+            grid-template-columns: 1fr 1fr;
+        }
+        @media (max-width: 768px) {
+            .before-after {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <header class="text-center mb-12">
+            <h1 class="text-4xl font-bold text-gray-800 mb-2">Ghibli Style Converter</h1>
+            <p class="text-gray-600">Transform your photos into Studio Ghibli artwork</p>
+        </header>
+
+        <div class="max-w-4xl mx-auto bg-white rounded-xl shadow-md overflow-hidden p-6">
+            <div class="text-center mb-8">
+                <input type="file" id="imageUpload" accept="image/*" class="hidden">
+                <label for="imageUpload" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-lg cursor-pointer transition duration-200 inline-flex items-center">
+                    <i class="fas fa-upload mr-2"></i> Choose an Image
+                </label>
+                <button id="convertBtn" class="bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-6 rounded-lg ml-4 transition duration-200 hidden">
+                    <i class="fas fa-magic mr-2"></i> Convert to Ghibli
+                </button>
+            </div>
+
+            <div id="previewSection" class="hidden">
+                <h2 class="text-xl font-semibold mb-4 text-gray-700">Your Image</h2>
+                <div class="image-container rounded-lg overflow-hidden mb-8">
+                    <img id="imagePreview" class="w-full h-full object-contain">
+                </div>
+            </div>
+
+            <div id="resultSection" class="hidden">
+                <h2 class="text-xl font-semibold mb-4 text-gray-700">Ghibli Version</h2>
+                <div class="before-after grid gap-4 mb-8">
+                    <div class="image-container rounded-lg overflow-hidden">
+                        <img id="originalImage" class="w-full h-full object-contain">
+                    </div>
+                    <div class="image-container rounded-lg overflow-hidden">
+                        <img id="convertedImage" class="w-full h-full object-contain">
+                    </div>
+                </div>
+                
+                <div class="text-center">
+                    <button id="downloadBtn" class="bg-purple-500 hover:bg-purple-600 text-white font-bold py-2 px-4 rounded-lg transition duration-200">
+                        <i class="fas fa-download mr-2"></i> Download Result
+                    </button>
+                </div>
+            </div>
+
+            <div id="loading" class="hidden text-center py-8">
+                <div class="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"></div>
+                <p class="text-gray-600">Transforming your image into Ghibli magic...</p>
+            </div>
+
+            <div id="error" class="hidden bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4 rounded">
+                <p id="errorMessage"></p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const imageUpload = document.getElementById('imageUpload');
+        const convertBtn = document.getElementById('convertBtn');
+        const previewSection = document.getElementById('previewSection');
+        const resultSection = document.getElementById('resultSection');
+        const imagePreview = document.getElementById('imagePreview');
+        const originalImage = document.getElementById('originalImage');
+        const convertedImage = document.getElementById('convertedImage');
+        const loading = document.getElementById('loading');
+        const error = document.getElementById('error');
+        const errorMessage = document.getElementById('errorMessage');
+        const downloadBtn = document.getElementById('downloadBtn');
+
+        let selectedFile = null;
+
+        imageUpload.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            // Validate file type
+            if (!file.type.match('image.*')) {
+                showError('Please select an image file (JPEG, PNG, etc.)');
+                return;
+            }
+
+            // Validate file size (max 5MB)
+            if (file.size > 5 * 1024 * 1024) {
+                showError('Image size should be less than 5MB');
+                return;
+            }
+
+            selectedFile = file;
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                imagePreview.src = event.target.result;
+                previewSection.classList.remove('hidden');
+                convertBtn.classList.remove('hidden');
+                resultSection.classList.add('hidden');
+                error.classList.add('hidden');
+            }
+            reader.readAsDataURL(file);
+        });
+
+        convertBtn.addEventListener('click', async function() {
+            if (!selectedFile) return;
+
+            loading.classList.remove('hidden');
+            previewSection.classList.add('hidden');
+            convertBtn.classList.add('hidden');
+            error.classList.add('hidden');
+
+            const formData = new FormData();
+            formData.append('image', selectedFile);
+
+            try {
+                const response = await fetch('/convert', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+                if (response.ok) {
+                    originalImage.src = data.original;
+                    convertedImage.src = data.url;
+                    resultSection.classList.remove('hidden');
+                } else {
+                    showError(data.error || 'Conversion failed');
+                }
+            } catch (err) {
+                showError('Network error. Please try again.');
+            } finally {
+                loading.classList.add('hidden');
+            }
+        });
+
+        downloadBtn.addEventListener('click', function() {
+            if (!convertedImage.src) return;
+            
+            const link = document.createElement('a');
+            link.href = convertedImage.src;
+            link.download = 'ghibli-style-' + Date.now() + '.jpg';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        });
+
+        function showError(message) {
+            errorMessage.textContent = message;
+            error.classList.remove('hidden');
+            loading.classList.add('hidden');
+        }
+    </script>
+</body>
+</html>
